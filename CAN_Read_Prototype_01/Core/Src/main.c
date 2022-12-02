@@ -60,6 +60,8 @@ static void MX_USART1_UART_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 //recevoir le message CAN en interruption
+int cc_test=1;
+
 uint32_t tempus=0;
 uint32_t tempus2=0;
 
