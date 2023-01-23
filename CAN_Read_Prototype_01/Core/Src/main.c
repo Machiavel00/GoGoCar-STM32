@@ -23,6 +23,7 @@
 /* USER CODE BEGIN Includes */
 #include <string.h>
 #include "conversion_can.h"
+#include "traitement_data.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -60,8 +61,8 @@ static void MX_USART1_UART_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 //recevoir le message CAN en interruption
-int cc_test=1;
 
+/*
 uint32_t tempus=0;
 uint32_t tempus2=0;
 
@@ -78,7 +79,7 @@ tablo_typedef tab[]=
 		{"pos_pdle",0x5A},
 		{"temper_liq",0x05}
 };
-
+*/
 
 
 CAN_RxHeaderTypeDef Rxheader;
@@ -86,53 +87,64 @@ uint8_t RxData[8];
 int datacheck;
 
 
-
-void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
+void HAL_CAN_WakeUpFromRxMsgCallback(CAN_HandleTypeDef *hcan)
 {
+	datacheck=1;
 
-  //Acquisition + verification
-  if( HAL_CAN_GetRxMessage(hcan,CAN_RX_FIFO0, &Rxheader, RxData) != HAL_OK)
-  {
-	  Error_Handler();
-  }
+	//if(HAL_CAN_GetRxFifoFillLevel(hcan,CAN_RX_FIFO0)==0)
+	//{
 
-  //Si ID=103
-  if (Rxheader.StdId == 0x103)
-  {
-	  //Levée du flag
-	  datacheck = 1;
-  }
 
-  //Flag haut
-  if( datacheck == 1 )
-  {
-	  /*
-	  tempus2=HAL_GetTick();
-	  while(HAL_GetTick()-tempus2<1000)
+	  //Acquisition + verification
+	 /*if( HAL_CAN_GetRxMessage(hcan,CAN_RX_FIFO0, &Rxheader, RxData) != HAL_OK)
 	  {
-		  if( HAL_GetTick()-tempus >39)
-		  {
-			  HAL_GPIO_WritePin(GPIOB,GPIO_PIN_1,GPIO_PIN_SET);
-			  tempus=HAL_GetTick();
-		  }
-		  HAL_GPIO_WritePin(GPIOB,GPIO_PIN_1,GPIO_PIN_RESET);
+		  datacheck=0;
+		  Error_Handler();
 	  }
-	  //le but ici est de garder la led allumée à un temps inférieur au rafraîchissement humain,
-	  //alors on ne percevra pas le clignottement
-	*/
+	  else{
+		  datacheck=1;
+	  }*/
 
-	//Allumage LED témoin
-	for (int i=0; i<2000; i++) {
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);
-	}
 
-	//Reset
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET);
-	datacheck=0;
+	  //Si ID=103
+	   /*if (Rxheader.StdId == 0x103)
+	  {
+		  //Levée du flag
+		  datacheck = 1;
+	  }*/
 
-  }
+
+	 // CAN_receive_FIFO_number;
+	 //Flag haut
+	  /*if( datacheck == 1 )
+	  {
+		  traitement(Rxheader.StdId, RxData);
+
+	  }*/
+
+	//}
 
 }
+void fct(CAN_HandleTypeDef *hcan)
+
+{
+	 if(HAL_CAN_GetRxMessage(hcan,CAN_RX_FIFO0, &Rxheader, RxData) != HAL_OK)
+		  {
+			  datacheck=0;
+			  Error_Handler();
+		  }
+		  else{
+			  datacheck=1;
+		  }
+	 //Flag haut
+		  if( datacheck == 1 )
+		  {
+			  traitement(RxData);
+
+		  }
+}
+
+
 /* USER CODE END 0 */
 
 /**
@@ -143,10 +155,7 @@ int main(void)
 {
   /* USER CODE BEGIN 1 */
 	//on vérifie que le can s'active correctement, sinon , retour d'erreur
-	if ( HAL_CAN_ActivateNotification(&hcan,CAN_IT_RX_FIFO0_MSG_PENDING) != HAL_OK)
-	{
-		Error_Handler();
-	}
+
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -155,6 +164,7 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
+  init(&huart1);
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -169,7 +179,10 @@ int main(void)
   MX_CAN_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
-
+  if ( HAL_CAN_ActivateNotification(&hcan,CAN_IT_RX_FIFO0_MSG_PENDING) != HAL_OK)
+  	{
+  		Error_Handler();
+  	}
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -180,6 +193,10 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
   }
+
+  uint8_t trame_test[8] = {0x03, 0x41, 0x0D, 0x32, 0xAA, 0xAA, 0xAA, 0xAA};
+  traitement(trame_test);
+
   /* USER CODE END 3 */
 }
 
@@ -200,7 +217,7 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI_DIV2;
-  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL16;
+  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL8;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -215,7 +232,7 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
   {
     Error_Handler();
   }
